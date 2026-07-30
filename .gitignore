@@ -5,6 +5,7 @@
 *.so
 *.dylib
 doh-adblock
+server
 
 # Test binary, built with `go test -c`
 *.test
