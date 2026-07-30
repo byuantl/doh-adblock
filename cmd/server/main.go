@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
@@ -96,6 +99,86 @@ func cacheCleanup(c *cache.Cache) {
 	}
 }
 
+type analyzeRequest struct {
+	Count   int    `json:"count"`
+	Backend string `json:"backend"`
+}
+
+type analyzeResponse struct {
+	Backend    string           `json:"backend"`
+	Verdicts   []analyzer.Verdict `json:"verdicts"`
+	Candidates int              `json:"candidates_written"`
+}
+
+func selectBackend(name string) analyzer.Backend {
+	switch strings.ToLower(name) {
+	case "anthropic":
+		return analyzer.NewAnthropic()
+	case "openai":
+		return analyzer.NewOpenAI()
+	default:
+		return analyzer.NewLocal()
+	}
+}
+
+func analyzeHandler(w http.ResponseWriter, r *http.Request, ul *analyzer.UnblockedLog) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "only POST supported", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req analyzeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Count <= 0 || req.Count > 100 {
+		req.Count = 20
+	}
+	if req.Backend == "" {
+		req.Backend = "local"
+	}
+
+	domains := ul.Top(req.Count)
+	if len(domains) == 0 {
+		json.NewEncoder(w).Encode(analyzeResponse{Backend: req.Backend})
+		return
+	}
+
+	names := make([]string, len(domains))
+	for i, d := range domains {
+		names[i] = d.Domain
+	}
+
+	backend := selectBackend(req.Backend)
+	verdicts, err := backend.Analyze(r.Context(), names)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("analysis failed: %s", err), http.StatusBadGateway)
+		return
+	}
+
+	candidates := 0
+	var candidateLines []string
+	for _, v := range verdicts {
+		if v.IsTracker && v.Confidence >= 0.7 {
+			candidateLines = append(candidateLines, "0.0.0.0 "+v.Domain)
+			candidates++
+		}
+	}
+
+	if len(candidateLines) > 0 {
+		data := strings.Join(candidateLines, "\n") + "\n"
+		os.WriteFile("candidates.txt", []byte(data), 0644)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(analyzeResponse{
+		Backend:    backend.Name(),
+		Verdicts:   verdicts,
+		Candidates: candidates,
+	})
+}
+
 func forwardToUpstream(query *dns.Msg) (*dns.Msg, error) {
 	c := new(dns.Client)
 	resp, _, err := c.Exchange(query, "1.1.1.1:53")
@@ -127,6 +210,10 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(snap)
+	})
+
+	http.HandleFunc("/analyze", func(w http.ResponseWriter, r *http.Request) {
+		analyzeHandler(w, r, ul)
 	})
 
 	fs := http.FileServer(http.Dir("web"))

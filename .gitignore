@@ -26,6 +26,9 @@ blocklist.txt
 query.bin
 response.bin
 
+# Analysis candidates
+candidates.txt
+
 # Agentic / instruction files (not part of the project)
 AGENTS.md
 adblocking-doh-resolver-guide.md
