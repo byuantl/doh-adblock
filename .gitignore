@@ -1,0 +1,30 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+doh-adblock
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace
+go.work
+
+# Local TLS certs
+certs/
+
+# Blocklist downloaded at runtime
+blocklist.txt
+
+# Test query/response binaries
+query.bin
+response.bin
+
+# Agentic / instruction files (not part of the project)
+AGENTS.md
+adblocking-doh-resolver-guide.md
