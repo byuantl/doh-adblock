@@ -2,6 +2,13 @@
 
 A DNS-over-HTTPS server that blocks ad/tracker domains using a StevenBlack blocklist, with caching, live stats, and AI-assisted blocklist enrichment.
 
+## Requirements
+
+- Go 1.21+
+- `mkcert` (for local TLS certs)
+- `curl` (for testing)
+- `python3` + `dnspython` (optional, for generating test queries)
+
 ## Quick Start
 
 ```bash
