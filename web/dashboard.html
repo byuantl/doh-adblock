@@ -5,8 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DoH Adblock Dashboard</title>
 <style>
+  * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #111; color: #eee; margin: 0; padding: 2rem; }
-  h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #888; }
+  h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #888; }
+  .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 1px solid #333; }
+  .tab { padding: 0.75rem 1.5rem; cursor: pointer; color: #666; border-bottom: 2px solid transparent; transition: 0.2s; user-select: none; }
+  .tab:hover { color: #aaa; }
+  .tab.active { color: #fff; border-bottom-color: #60a5fa; }
+  .panel { display: none; }
+  .panel.active { display: block; }
   .stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
   .card { background: #222; border-radius: 8px; padding: 1.5rem; min-width: 140px; }
   .card .label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -16,42 +23,100 @@
   .card .value.blue { color: #60a5fa; }
   .card .value.yellow { color: #facc15; }
   h2 { font-size: 1.1rem; margin-top: 2rem; color: #888; }
-  table { width: 100%; max-width: 500px; border-collapse: collapse; margin-top: 0.5rem; }
+  table { width: 100%; max-width: 600px; border-collapse: collapse; margin-top: 0.5rem; }
   th, td { text-align: left; padding: 0.5rem 0; border-bottom: 1px solid #333; }
   th { color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-  td { font-family: monospace; }
-  .bar-bg { background: #333; height: 8px; border-radius: 4px; margin-top: 1rem; width: 100%; }
+  td { font-family: monospace; vertical-align: middle; }
+  .bar-bg { background: #333; height: 8px; border-radius: 4px; margin-top: 1rem; width: 100%; max-width: 600px; }
   .bar-fill { background: #f87171; height: 8px; border-radius: 4px; transition: width 0.5s; }
+  .tag { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; }
+  .tag.tracker { background: rgba(248,113,113,0.2); color: #f87171; }
+  .tag.clean { background: rgba(74,222,128,0.2); color: #4ade80; }
+  .ctrl { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+  .ctrl select, .ctrl input, .ctrl button { background: #222; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.9rem; }
+  .ctrl button { cursor: pointer; background: #2563eb; border-color: #2563eb; font-weight: 600; transition: 0.2s; }
+  .ctrl button:hover { background: #1d4ed8; }
+  .ctrl button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ctrl input { width: 80px; }
+  .btn-sm { background: transparent; border: 1px solid #4ade80; color: #4ade80; border-radius: 4px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.75rem; transition: 0.2s; }
+  .btn-sm:hover { background: rgba(74,222,128,0.15); }
+  .btn-sm:disabled { opacity: 0.3; cursor: not-allowed; }
+  .msg { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
 </style>
 </head>
 <body>
 <h1>DoH Adblock Resolver</h1>
-<div class="stats">
-  <div class="card">
-    <div class="label">Total Queries</div>
-    <div class="value blue" id="total">0</div>
-  </div>
-  <div class="card">
-    <div class="label">Blocked</div>
-    <div class="value red" id="blocked">0</div>
-  </div>
-  <div class="card">
-    <div class="label">Cache Hits</div>
-    <div class="value green" id="cache-hits">0</div>
-  </div>
-</div>
-<div class="bar-bg"><div class="bar-fill" id="block-bar" style="width:0%"></div></div>
 
-<h2>Top Blocked Domains</h2>
-<table>
-  <thead><tr><th>#</th><th>Domain</th><th>Count</th></tr></thead>
-  <tbody id="top-blocked"></tbody>
-</table>
+<div class="tabs">
+  <div class="tab active" data-tab="stats">Stats</div>
+  <div class="tab" data-tab="analysis">Analysis</div>
+</div>
+
+<div class="panel active" id="panel-stats">
+  <div class="stats">
+    <div class="card">
+      <div class="label">Total Queries</div>
+      <div class="value blue" id="total">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Blocked</div>
+      <div class="value red" id="blocked">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Cache Hits</div>
+      <div class="value green" id="cache-hits">0</div>
+    </div>
+  </div>
+  <div class="bar-bg"><div class="bar-fill" id="block-bar" style="width:0%"></div></div>
+
+  <h2>Top Blocked</h2>
+  <table>
+    <thead><tr><th>#</th><th>Domain</th><th>Count</th></tr></thead>
+    <tbody id="top-blocked"></tbody>
+  </table>
+
+  <h2>Top Unblocked</h2>
+  <table>
+    <thead><tr><th>#</th><th>Domain</th><th>Count</th></tr></thead>
+    <tbody id="top-unblocked"></tbody>
+  </table>
+</div>
+
+<div class="panel" id="panel-analysis">
+  <div class="ctrl">
+    <select id="backend">
+      <option value="local">Local</option>
+      <option value="anthropic">Anthropic</option>
+      <option value="openai">OpenAI</option>
+    </select>
+    <input type="number" id="count" value="20" min="1" max="100">
+    <button id="analyze-btn">Analyze</button>
+  </div>
+
+  <div id="analysis-status" class="msg"></div>
+
+  <h2>Verdicts</h2>
+  <table>
+    <thead><tr><th>Domain</th><th>Verdict</th><th>Confidence</th><th>Reason</th><th></th></tr></thead>
+    <tbody id="verdicts"></tbody>
+  </table>
+</div>
 
 <script>
+// ---- tabs ----
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
 function fmt(n) { return Number(n).toLocaleString(); }
 
-async function refresh() {
+// ---- stats refresh ----
+async function refreshStats() {
   try {
     const res = await fetch('/stats');
     const d = await res.json();
@@ -61,22 +126,87 @@ async function refresh() {
     const pct = d.total_queries > 0 ? (d.blocked_queries / d.total_queries * 100) : 0;
     document.getElementById('block-bar').style.width = pct.toFixed(1) + '%';
 
-    const tbody = document.getElementById('top-blocked');
-    tbody.innerHTML = '';
-    if (d.top_blocked) {
-      d.top_blocked.forEach((item, i) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + item.domain + '</td><td>' + fmt(item.count) + '</td>';
-        tbody.appendChild(tr);
-      });
-    }
+    const fillTable = (id, items) => {
+      const tbody = document.getElementById(id);
+      tbody.innerHTML = '';
+      if (items) {
+        items.forEach((item, i) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + item.domain + '</td><td>' + fmt(item.count) + '</td>';
+          tbody.appendChild(tr);
+        });
+      }
+    };
+    fillTable('top-blocked', d.top_blocked);
+    fillTable('top-unblocked', d.top_unblocked);
   } catch (e) {
-    console.error('dashboard fetch error:', e);
+    console.error('stats fetch error:', e);
   }
 }
 
-refresh();
-setInterval(refresh, 2000);
+refreshStats();
+setInterval(refreshStats, 2000);
+
+// ---- analysis ----
+document.getElementById('analyze-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('analyze-btn');
+  const status = document.getElementById('analysis-status');
+  const backend = document.getElementById('backend').value;
+  const count = parseInt(document.getElementById('count').value) || 20;
+
+  btn.disabled = true;
+  status.textContent = 'Running analysis...';
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ count, backend })
+    });
+    const data = await res.json();
+    status.textContent = 'Backend: ' + data.backend + ' | Candidates written: ' + data.candidates_written;
+
+    const tbody = document.getElementById('verdicts');
+    tbody.innerHTML = '';
+    if (data.verdicts) {
+      data.verdicts.forEach(v => {
+        const tr = document.createElement('tr');
+        const tag = v.is_tracker
+          ? '<span class="tag tracker">tracker</span>'
+          : '<span class="tag clean">clean</span>';
+        const confidence = (v.confidence * 100).toFixed(0) + '%';
+        const approveBtn = v.is_tracker && v.confidence >= 0.7
+          ? '<button class="btn-sm approve-btn" data-domain="' + v.domain + '">Approve</button>'
+          : '';
+        tr.innerHTML = '<td>' + v.domain + '</td><td>' + tag + '</td><td>' + confidence + '</td><td>' + (v.reason || '') + '</td><td>' + approveBtn + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.querySelectorAll('.approve-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          await fetch('/blocklist/approve', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ domains: [btn.dataset.domain] })
+          });
+          btn.textContent = 'Approved';
+        } catch (e) {
+          btn.textContent = 'Error';
+          console.error(e);
+        }
+      });
+    });
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+  }
+});
 </script>
 </body>
 </html>
