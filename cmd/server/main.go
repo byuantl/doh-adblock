@@ -9,6 +9,7 @@ import (
 
 	"github.com/miekg/dns"
 
+	"doh-adblock/internal/analyzer"
 	"doh-adblock/internal/blocklist"
 	"doh-adblock/internal/cache"
 	"doh-adblock/internal/stats"
@@ -35,7 +36,7 @@ func buildBlockedResponse(query *dns.Msg) *dns.Msg {
 	return resp
 }
 
-func dohHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist, c *cache.Cache, s *stats.Stats) {
+func dohHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist, c *cache.Cache, s *stats.Stats, ul *analyzer.UnblockedLog) {
 	s.RecordQuery()
 
 	if r.Method != http.MethodPost {
@@ -82,6 +83,7 @@ func dohHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist,
 
 	if len(query.Question) > 0 {
 		c.Set(query.Question[0], resp)
+		ul.Record(query.Question[0].Name)
 	}
 
 	writeDNSResponse(w, resp)
@@ -110,14 +112,21 @@ func main() {
 	go cacheCleanup(c)
 
 	s := stats.New()
+	ul := analyzer.NewUnblockedLog(1000)
 
 	http.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
-		dohHandler(w, r, bl, c, s)
+		dohHandler(w, r, bl, c, s, ul)
 	})
 
 	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		snap := s.Snapshot()
+		top := ul.Top(10)
+		snap.TopUnblocked = make([]stats.UnblockedEntry, len(top))
+		for i, e := range top {
+			snap.TopUnblocked[i] = stats.UnblockedEntry{Domain: e.Domain, Count: e.Count}
+		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(s.Snapshot())
+		json.NewEncoder(w).Encode(snap)
 	})
 
 	fs := http.FileServer(http.Dir("web"))

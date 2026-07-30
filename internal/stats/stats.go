@@ -33,11 +33,17 @@ func (s *Stats) RecordCacheHit() {
 	atomic.AddInt64(&s.CacheHits, 1)
 }
 
+type UnblockedEntry struct {
+	Domain string `json:"domain"`
+	Count  int64  `json:"count"`
+}
+
 type Snapshot struct {
-	TotalQueries   int64        `json:"total_queries"`
-	BlockedQueries int64        `json:"blocked_queries"`
-	CacheHits      int64        `json:"cache_hits"`
-	TopBlocked     []BlockedDOM `json:"top_blocked,omitempty"`
+	TotalQueries   int64           `json:"total_queries"`
+	BlockedQueries int64           `json:"blocked_queries"`
+	CacheHits      int64           `json:"cache_hits"`
+	TopBlocked     []BlockedDOM    `json:"top_blocked,omitempty"`
+	TopUnblocked   []UnblockedEntry `json:"top_unblocked,omitempty"`
 }
 
 type BlockedDOM struct {
