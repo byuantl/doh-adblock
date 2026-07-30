@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"doh-adblock/internal/blocklist"
 	"doh-adblock/internal/cache"
+	"doh-adblock/internal/stats"
 )
 
 func writeDNSResponse(w http.ResponseWriter, resp *dns.Msg) {
@@ -33,7 +35,9 @@ func buildBlockedResponse(query *dns.Msg) *dns.Msg {
 	return resp
 }
 
-func dohHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist, c *cache.Cache) {
+func dohHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist, c *cache.Cache, s *stats.Stats) {
+	s.RecordQuery()
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "only POST supported", http.StatusMethodNotAllowed)
 		return
@@ -55,6 +59,7 @@ func dohHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist,
 		q := query.Question[0]
 
 		if cached, ok := c.Get(q); ok {
+			s.RecordCacheHit()
 			reply := cached.Copy()
 			reply.Id = query.Id
 			writeDNSResponse(w, reply)
@@ -62,6 +67,7 @@ func dohHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist,
 		}
 
 		if bl.IsBlocked(q.Name) {
+			s.RecordBlocked(q.Name)
 			resp := buildBlockedResponse(&query)
 			writeDNSResponse(w, resp)
 			return
@@ -103,9 +109,20 @@ func main() {
 	c := cache.New()
 	go cacheCleanup(c)
 
+	s := stats.New()
+
 	http.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
-		dohHandler(w, r, bl, c)
+		dohHandler(w, r, bl, c, s)
 	})
+
+	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(s.Snapshot())
+	})
+
+	fs := http.FileServer(http.Dir("web"))
+	http.Handle("/dashboard/", http.StripPrefix("/dashboard/", fs))
+
 	log.Println("DoH server listening on :8443")
 	log.Fatal(http.ListenAndServeTLS(":8443", "certs/cert.pem", "certs/key.pem", nil))
 }

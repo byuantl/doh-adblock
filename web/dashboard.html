@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DoH Adblock Dashboard</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #111; color: #eee; margin: 0; padding: 2rem; }
+  h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #888; }
+  .stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  .card { background: #222; border-radius: 8px; padding: 1.5rem; min-width: 140px; }
+  .card .label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .value { font-size: 2rem; font-weight: 700; margin-top: 0.25rem; }
+  .card .value.green { color: #4ade80; }
+  .card .value.red { color: #f87171; }
+  .card .value.blue { color: #60a5fa; }
+  .card .value.yellow { color: #facc15; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; color: #888; }
+  table { width: 100%; max-width: 500px; border-collapse: collapse; margin-top: 0.5rem; }
+  th, td { text-align: left; padding: 0.5rem 0; border-bottom: 1px solid #333; }
+  th { color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { font-family: monospace; }
+  .bar-bg { background: #333; height: 8px; border-radius: 4px; margin-top: 1rem; width: 100%; }
+  .bar-fill { background: #f87171; height: 8px; border-radius: 4px; transition: width 0.5s; }
+</style>
+</head>
+<body>
+<h1>DoH Adblock Resolver</h1>
+<div class="stats">
+  <div class="card">
+    <div class="label">Total Queries</div>
+    <div class="value blue" id="total">0</div>
+  </div>
+  <div class="card">
+    <div class="label">Blocked</div>
+    <div class="value red" id="blocked">0</div>
+  </div>
+  <div class="card">
+    <div class="label">Cache Hits</div>
+    <div class="value green" id="cache-hits">0</div>
+  </div>
+</div>
+<div class="bar-bg"><div class="bar-fill" id="block-bar" style="width:0%"></div></div>
+
+<h2>Top Blocked Domains</h2>
+<table>
+  <thead><tr><th>#</th><th>Domain</th><th>Count</th></tr></thead>
+  <tbody id="top-blocked"></tbody>
+</table>
+
+<script>
+function fmt(n) { return Number(n).toLocaleString(); }
+
+async function refresh() {
+  try {
+    const res = await fetch('/stats');
+    const d = await res.json();
+    document.getElementById('total').textContent = fmt(d.total_queries);
+    document.getElementById('blocked').textContent = fmt(d.blocked_queries);
+    document.getElementById('cache-hits').textContent = fmt(d.cache_hits);
+    const pct = d.total_queries > 0 ? (d.blocked_queries / d.total_queries * 100) : 0;
+    document.getElementById('block-bar').style.width = pct.toFixed(1) + '%';
+
+    const tbody = document.getElementById('top-blocked');
+    tbody.innerHTML = '';
+    if (d.top_blocked) {
+      d.top_blocked.forEach((item, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + item.domain + '</td><td>' + fmt(item.count) + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+  } catch (e) {
+    console.error('dashboard fetch error:', e);
+  }
+}
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
