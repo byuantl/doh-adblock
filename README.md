@@ -17,39 +17,67 @@ curl -o blocklist.txt https://raw.githubusercontent.com/StevenBlack/hosts/master
 go run ./cmd/server/
 ```
 
-## Test
+## Example
 
 ```bash
 pip3 install dnspython
 
 # Query an allowed domain
 python3 -c "import dns.message; open('query.bin','wb').write(dns.message.make_query('example.com','A').to_wire())"
+
 curl -k -X POST https://localhost:8443/dns-query \
   --header "content-type: application/dns-message" \
   --data-binary @query.bin -o response.bin
+
 python3 -c "import dns.message; print(dns.message.from_wire(open('response.bin','rb').read()))"
 
 # Query a blocked domain
 python3 -c "import dns.message; open('query.bin','wb').write(dns.message.make_query('doubleclick.net','A').to_wire())"
+
 curl -k -X POST https://localhost:8443/dns-query \
   --header "content-type: application/dns-message" \
   --data-binary @query.bin -o response.bin
+
 python3 -c "import dns.message; print(dns.message.from_wire(open('response.bin','rb').read()))"
 ```
 
 The blocked domain returns `0.0.0.0` instead of a real IP.
 
-<!-- screenshot: curl response showing a blocked domain returning 0.0.0.0 -->
+```bash
+# example.com response
+id 23464
+opcode QUERY
+rcode NOERROR
+flags QR RD RA
+;QUESTION
+example.com. IN A
+;ANSWER
+example.com. 60 IN A 172.66.147.243
+example.com. 60 IN A 104.20.23.154
+;AUTHORITY
+;ADDITIONAL
+
+# doubleclick.net response
+id 17469
+opcode QUERY
+rcode NOERROR
+flags QR AA RD
+;QUESTION
+doubleclick.net. IN A
+;ANSWER
+doubleclick.net. 300 IN A 0.0.0.0
+;AUTHORITY
+;ADDITIONAL
+```
 
 ## Dashboard
 
 Open [https://localhost:8443/dashboard/dashboard.html](https://localhost:8443/dashboard/dashboard.html) in your browser.
 
 - **Stats tab** — live counters for total queries, blocked, cache hits, and top blocked/unblocked domains
+![Stats dashboard](assets/stats.png)
 - **Analysis tab** — run heuristic or LLM analysis on frequently-seen unblocked domains, then approve candidates to the blocklist
-
-<!-- screenshot: stats tab showing live counters and top blocked/unblocked tables -->
-<!-- screenshot: analysis tab showing verdicts table and approve buttons -->
+![Analysis dashboard](assets/analysis.png)
 
 ## Endpoints
 
