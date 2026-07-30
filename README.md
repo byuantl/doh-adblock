@@ -13,7 +13,6 @@ A DNS-over-HTTPS server that blocks ad/tracker domains using a StevenBlack block
 
 ```bash
 # 1. TLS certs (required for HTTPS)
-brew install mkcert
 mkcert -install
 mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1
 
