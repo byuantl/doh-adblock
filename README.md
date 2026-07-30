@@ -39,12 +39,17 @@ python3 -c "import dns.message; print(dns.message.from_wire(open('response.bin',
 
 The blocked domain returns `0.0.0.0` instead of a real IP.
 
+<!-- screenshot: curl response showing a blocked domain returning 0.0.0.0 -->
+
 ## Dashboard
 
 Open [https://localhost:8443/dashboard/dashboard.html](https://localhost:8443/dashboard/dashboard.html) in your browser.
 
 - **Stats tab** — live counters for total queries, blocked, cache hits, and top blocked/unblocked domains
 - **Analysis tab** — run heuristic or LLM analysis on frequently-seen unblocked domains, then approve candidates to the blocklist
+
+<!-- screenshot: stats tab showing live counters and top blocked/unblocked tables -->
+<!-- screenshot: analysis tab showing verdicts table and approve buttons -->
 
 ## Endpoints
 
@@ -89,10 +94,4 @@ certs/                      # TLS certs (generated at setup)
 blocklist.txt               # StevenBlack hosts file (downloaded at setup)
 ```
 
-## Suggested Screenshots
 
-If documenting this project, consider adding:
-
-1. A `curl` test showing a blocked domain returning `0.0.0.0`
-2. The dashboard **Stats** tab showing live counters and top domains
-3. The dashboard **Analysis** tab with verdicts and approve buttons
