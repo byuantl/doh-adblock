@@ -179,6 +179,56 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request, ul *analyzer.Unblock
 	})
 }
 
+type approveRequest struct {
+	Domains []string `json:"domains"`
+}
+
+type approveResponse struct {
+	Approved int    `json:"approved"`
+	BlocklistSize int `json:"blocklist_size"`
+}
+
+func approveHandler(w http.ResponseWriter, r *http.Request, bl *blocklist.Blocklist) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "only POST supported", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req approveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(req.Domains) == 0 {
+		http.Error(w, "no domains provided", http.StatusBadRequest)
+		return
+	}
+
+	f, err := os.OpenFile("blocklist.txt", os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("open blocklist: %s", err), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	for _, d := range req.Domains {
+		domain := strings.TrimSpace(strings.ToLower(d))
+		if domain == "" {
+			continue
+		}
+		if _, err := fmt.Fprintf(f, "0.0.0.0 %s\n", domain); err != nil {
+			http.Error(w, fmt.Sprintf("write blocklist: %s", err), http.StatusInternalServerError)
+			return
+		}
+		bl.Add(domain)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(approveResponse{
+		Approved: len(req.Domains),
+	})
+}
+
 func forwardToUpstream(query *dns.Msg) (*dns.Msg, error) {
 	c := new(dns.Client)
 	resp, _, err := c.Exchange(query, "1.1.1.1:53")
@@ -214,6 +264,10 @@ func main() {
 
 	http.HandleFunc("/analyze", func(w http.ResponseWriter, r *http.Request) {
 		analyzeHandler(w, r, ul)
+	})
+
+	http.HandleFunc("/blocklist/approve", func(w http.ResponseWriter, r *http.Request) {
+		approveHandler(w, r, bl)
 	})
 
 	fs := http.FileServer(http.Dir("web"))

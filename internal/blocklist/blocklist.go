@@ -43,3 +43,40 @@ func (bl *Blocklist) IsBlocked(domain string) bool {
 	_, blocked := bl.domains[domain]
 	return blocked
 }
+
+func (bl *Blocklist) Reload(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	newDomains := make(map[string]struct{})
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		domain := strings.ToLower(fields[1])
+		newDomains[domain] = struct{}{}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	bl.mu.Lock()
+	bl.domains = newDomains
+	bl.mu.Unlock()
+	return nil
+}
+
+func (bl *Blocklist) Add(domain string) {
+	bl.mu.Lock()
+	bl.domains[strings.ToLower(domain)] = struct{}{}
+	bl.mu.Unlock()
+}
